@@ -1,0 +1,195 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+library(readr)
+library(ggplot2)
+library(dplyr)
+library(caret)
+library(data.table)
+```
+
+```{r}
+train <- fread("train_V2.csv")
+test <- read.csv("test_V2.csv")
+```
+
+
+```{r}
+
+str(train)
+glimpse(train)
+
+```
+
+#Lets create a baseline
+```{r}
+
+summary(train$winPlacePerc)
+
+```
+
+We found that 0.4583 is the median, lets make our whole prediction as the median value.
+players are around the middle in the range of finishing the game.
+
+```{r}
+result <- rep(0.4583,1934174)
+
+submission <- data.frame(c(test$Id,result))
+
+write.csv(submission,"My First submission")
+
+labels <- get_down(elastic_search)
+
+```
+
+
+
+```{r}
+colSums(is.na(train))
+# Pretty clean data - 1 null value in winplaceperc
+```
+
+```{r}
+train$winPlacePerc[is.na(train$winPlacePerc)] <- 0
+
+
+y<- train$winPlacePerc
+all <- bind_rows(train[,-29],test)
+
+```
+
+
+```{r}
+table(train$matchType,train$winPoints == 1)
+
+```
+
+split the train into train and validation
+```{r}
+
+train.rows <- createDataPartition(train$winPlacePerc,p=0.8, list = FALSE)
+train1 <- train[train.rows,]
+test1 <- train[-train.rows,]
+
+```
+
+
+##ML prediction time - No feature Engineering Magic!
+
+Linear regression is the first go to method when it comes to regression.
+
+     
+
+Linear regression is used to predict the value of an outcome variable Y based on one or more input predictor variables X. The aim is to establish a linear relationship (a mathematical formula) between the predictor variable(s) and the response variable, so that, we can use this formula to estimate the value of the response Y, when only the predictors (Xs) values are known.Using our PUBG data, suppose we wish to model the linear relationship between the assets,kills and winPlacePerc.
+
+ Y = ??1 + ??2X + ??
+ 
+ Y intercept 
+
+where, ??1 is the intercept and ??2 is the slope. Collectively, they are called regression coefficients. ?? is the error term, the part of Y the regression model is unable to explain.
+
+Linear regression is one of th simplet and easiest to analyse and understand what is happening in the 
+1 - Linear regression
+
+```{r}
+# 
+# aggregate(winPlacePerc ~ matchType , data=train, FUN=sum)
+
+model_lr <- lm(winPlacePerc ~matchType+walkDistance+winPoints,train1)
+
+summary(model_lr)
+
+
+```
+
+```{r}
+
+ggplot(train, aes(assists, matchType)) +
+        geom_point()
+
+```
+
+
+```{r}
+
+predict_lr_1 <- predict(model_lr,test1)
+
+# Cross validation
+
+train_control <- trainControl(method = "cv",number = 10)
+
+
+
+
+#cross- checking
+results <- MAE(predict_lr_1,test1$winPlacePerc)
+
+
+#Real one
+
+predict_lr <- predict(model_lr,test)
+
+
+```
+
+# Linear submission
+```{r}
+
+submission$winPlacePerc <- predict_lr
+write.csv(submission,"Linear_submission.csv",row.names = FALSE)
+
+```
+
+
+```{r}
+train %>% summarize()
+```
+
+#The Caret
+
+```{r}
+# 5 fold cross validation
+
+outcomes <- "winPlacePerc"
+predictors <- c("winPoints","walkDistance","matchType","killPoints")
+
+fitControl <- trainControl(method = "repeatedcv",number = 5,repeats = 5)
+
+model_gbm <- train(train1[,predictors],train1[,outcomes],method = "gbm",trControl = fitControl)
+
+```
+
+
+```{r}
+train.num <- train[,c(4:15,17:29)]
+train.cor<-as.data.frame(lapply(train.num, as.numeric))
+corrplot(cor(train.cor),method = "circle")
+```
+
+```{r}
+df <- rsample::attrition %>% 
+  dplyr::mutate_if(is.ordered, factor, ordered = FALSE) %>%
+  dplyr::mutate(Attrition = factor(Attrition, levels = c("Yes", "No")))
+
+index <- 1:5
+train_obs <- df[-index, ]
+local_obs <- df[index, ]
+```
+
+```{r}
+DF <- data.frame(x=letters[1:5], y=1:5, stringsAsFactors=FALSE)
+
+str(DF)
+```
+
+```{r}
+DF <- as.data.frame(unclass(DF))
+str(DF)
+
+```
+
